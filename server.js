@@ -1,21 +1,20 @@
 // 引入必要的模块
-var WebSocket = require('ws');
-var http = require('http');
-var minimist = require('minimist');
+var WebSocket = require("ws");
+var http = require("http");
+var minimist = require("minimist");
 
 // 解析命令行参数
-var argv = minimist(process.argv.slice(2), {string: ['port'], default: {port: 3000}});
+var argv = minimist(process.argv.slice(2), {
+  string: ["port"],
+  default: { port: 3000 },
+});
 
 // 创建一个HTTP服务器
-var server = http.createServer(function(req, res) {
+var server = http.createServer(function (req, res) {
   // 对根路径进行响应
-  if (req.url === '/') {
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    res.end('OK');
-  } else {
-    // 可以处理其他路径或返回404等
-    res.writeHead(404, {'Content-Type': 'text/plain'});
-    res.end('Not Found');
+  if (req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("OK");
   }
 });
 
@@ -24,24 +23,26 @@ var wss = new WebSocket.Server({ server });
 
 // 关闭服务器的逻辑
 var shutdown = function () {
-  console.log('Received kill signal, shutting down gracefully.');
+  console.log("Received kill signal, shutting down gracefully.");
 
   server.close(function () {
-    console.log('Closed out remaining connections.');
+    console.log("Closed out remaining connections.");
     process.exit();
   });
 
   setTimeout(function () {
-    console.error('Could not close connections in time, forcefully shutting down');
+    console.error(
+      "Could not close connections in time, forcefully shutting down"
+    );
     process.exit();
   }, 10 * 1000);
 };
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
 // WebSocket服务器错误处理
-wss.on('error', function (err) {
+wss.on("error", function (err) {
   console.log(err);
 });
 
@@ -51,22 +52,29 @@ var msgMinInterval = 500;
 var lastMsgTimestamps = {};
 
 // 处理WebSocket连接
-wss.on('connection', function (ws, req) {
-  var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  ws.on('message', function (message) {
+wss.on("connection", function (ws, req) {
+  var ip = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+  ws.on("message", function (message) {
     var time = Date.now();
-    if (lastMsgTimestamps[ip] && time - lastMsgTimestamps[ip] < msgMinInterval) {
+    if (
+      lastMsgTimestamps[ip] &&
+      time - lastMsgTimestamps[ip] < msgMinInterval
+    ) {
       return;
     }
     try {
       message = JSON.parse(message);
-      if (!hexColorRegExp.test(message.color) || !typeRegExp.test(message.type) || !message.text) {
+      if (
+        !hexColorRegExp.test(message.color) ||
+        !typeRegExp.test(message.type) ||
+        !message.text
+      ) {
         return;
       }
       var msg = {
         text: message.text.substr(0, 255),
         color: message.color,
-        type: message.type
+        type: message.type,
       };
     } catch (e) {
       return;
@@ -87,7 +95,7 @@ wss.on('connection', function (ws, req) {
       }
     });
   });
-  ws.on('error', console.log);
+  ws.on("error", console.log);
 });
 
 // 定期清理过时的消息时间戳
@@ -101,6 +109,6 @@ setInterval(function () {
 }, 5000);
 
 // 让HTTP服务器监听指定的端口
-server.listen(argv.port, '0.0.0.0', function() {
-  console.log('HTTP and WebSocket server started on port: ' + argv.port);
+server.listen(argv.port, function () {
+  console.log("HTTP and WebSocket server started on port: " + argv.port);
 });
