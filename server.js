@@ -1,14 +1,28 @@
-var WebSocket = new require('ws');
+// 引入必要的模块
+var WebSocket = require('ws');
+var http = require('http');
+var minimist = require('minimist');
 
-var argv = require('minimist')(process.argv.slice(2), {string: ['port'], default: {port: 3000}});
+// 解析命令行参数
+var argv = minimist(process.argv.slice(2), {string: ['port'], default: {port: 3000}});
 
-var server = new WebSocket.Server({
-  clientTracking: true,
-  port: argv['port']
-}, function () {
-  console.log('WebSocket server started on port: ' + argv['port']);
+// 创建一个HTTP服务器
+var server = http.createServer(function(req, res) {
+  // 对根路径进行响应
+  if (req.url === '/') {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    res.end('OK');
+  } else {
+    // 可以处理其他路径或返回404等
+    res.writeHead(404, {'Content-Type': 'text/plain'});
+    res.end('Not Found');
+  }
 });
 
+// 在HTTP服务器上创建WebSocket服务器
+var wss = new WebSocket.Server({ server });
+
+// 关闭服务器的逻辑
 var shutdown = function () {
   console.log('Received kill signal, shutting down gracefully.');
 
@@ -26,20 +40,22 @@ var shutdown = function () {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-server.on('error', function (err) {
+// WebSocket服务器错误处理
+wss.on('error', function (err) {
   console.log(err);
 });
 
-var hexColorRegExp = /^\d{8}$/
+var hexColorRegExp = /^\d{8}$/;
 var typeRegExp = /^(0|1|2)$/;
 var msgMinInterval = 500;
 var lastMsgTimestamps = {};
 
-server.on('connection', function (ws, req) {
+// 处理WebSocket连接
+wss.on('connection', function (ws, req) {
   var ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   ws.on('message', function (message) {
     var time = Date.now();
-    if (lastMsgTimestamps[ip] && lastMsgTimestamps[ip] - time < msgMinInterval) {
+    if (lastMsgTimestamps[ip] && time - lastMsgTimestamps[ip] < msgMinInterval) {
       return;
     }
     try {
@@ -61,10 +77,12 @@ server.on('connection', function (ws, req) {
 
     var data = JSON.stringify(msg);
 
-    server.clients.forEach(function (client) {
+    wss.clients.forEach(function (client) {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
         client.send(data, function (err) {
-          err && console.log(err);
+          if (err) {
+            console.log(err);
+          }
         });
       }
     });
@@ -72,6 +90,7 @@ server.on('connection', function (ws, req) {
   ws.on('error', console.log);
 });
 
+// 定期清理过时的消息时间戳
 setInterval(function () {
   var time = Date.now();
   Object.keys(lastMsgTimestamps).forEach(function (key) {
@@ -80,3 +99,8 @@ setInterval(function () {
     }
   });
 }, 5000);
+
+// 让HTTP服务器监听指定的端口
+server.listen(argv.port, function() {
+  console.log('HTTP and WebSocket server started on port: ' + argv.port);
+});
