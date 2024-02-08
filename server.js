@@ -101,6 +101,6 @@ setInterval(function () {
 }, 5000);
 
 // 让HTTP服务器监听指定的端口
-server.listen(argv.port, function() {
+server.listen(argv.port, '0.0.0.0', function() {
   console.log('HTTP and WebSocket server started on port: ' + argv.port);
 });
